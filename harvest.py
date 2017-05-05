@@ -1,9 +1,8 @@
 #!/usr/bin/python
 import socket
 
-import tailer
-
 import config
+import tailer
 
 server_addr = config.server['host']
 server_port = config.server['port']

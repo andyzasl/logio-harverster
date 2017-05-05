@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 import time
@@ -151,13 +152,19 @@ class Tailer(object):
         else:
             return []
 
-    def follow(self, delay=1.0):
+    def follow(self, delay=1.0, filename=None):
         """\
         Iterator generator that returns lines as data is added to the file.
 
         Based on: http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/157035
+
+        If filename is passed, will make sure that the file has not been deleted,
+        or that it has not been rotated. This feature is useful for compatability with
+        logrotate.
         """
         trailing = True
+        if filename is not None:
+            curino = os.fstat(self.file.fileno()).st_ino
 
         while 1:
             where = self.file.tell()
@@ -178,9 +185,32 @@ class Tailer(object):
                 trailing = False
                 yield line
             else:
+                should_seek = True
+                if filename is not None:
+                    reopen = False
+                    try:
+                        if os.stat(filename).st_ino != curino:
+                            self.file.close()
+                            reopen = True
+                    except:
+                        # file probably has been deleted
+                        curino = None
+                        reopen = True
+
+                    if reopen:
+                        try:
+                            self.file = open(filename, "r")
+                            curino = os.fstat(self.file.fileno()).st_ino
+                            should_seek = False
+                        except:
+                            # a new file does not exist yet
+                            time.sleep(delay)
+
+                if should_seek:
+                    self.seek(where)
+                    time.sleep(delay)
+
                 trailing = True
-                self.seek(where)
-                time.sleep(delay)
 
     def __iter__(self):
         return self.follow()
@@ -193,13 +223,10 @@ def tail(file, lines=10):
     """\
     Return the last lines of the file.
 
-    >>> try:
-    ...    from StringIO import StringIO
-    ... except ImportError:
-    ...    from io import StringIO
-    >>> f = StringIO()
+    >>> import StringIO
+    >>> f = StringIO.StringIO()
     >>> for i in range(11):
-    ...     _ = f.write('Line %d\\n' % (i + 1))
+    ...     f.write('Line %d\\n' % (i + 1))
     >>> tail(f, 3)
     ['Line 9', 'Line 10', 'Line 11']
     """
@@ -210,40 +237,37 @@ def head(file, lines=10):
     """\
     Return the top lines of the file.
 
-    >>> try:
-    ...    from StringIO import StringIO
-    ... except ImportError:
-    ...    from io import StringIO
-    >>> f = StringIO()
+    >>> import StringIO
+    >>> f = StringIO.StringIO()
     >>> for i in range(11):
-    ...     _ = f.write('Line %d\\n' % (i + 1))
+    ...     f.write('Line %d\\n' % (i + 1))
     >>> head(f, 3)
     ['Line 1', 'Line 2', 'Line 3']
     """
     return Tailer(file).head(lines)
 
 
-def follow(file, delay=1.0):
+def follow(file, delay=1.0, filename=None):
     """\
     Iterator generator that returns lines as data is added to the file.
 
     >>> import os
-    >>> f = open('test_follow.txt', 'w')
-    >>> fo = open('test_follow.txt', 'r')
+    >>> f = file('test_follow.txt', 'w')
+    >>> fo = file('test_follow.txt', 'r')
     >>> generator = follow(fo)
-    >>> _ = f.write('Line 1\\n')
+    >>> f.write('Line 1\\n')
     >>> f.flush()
-    >>> next(generator)
+    >>> generator.next()
     'Line 1'
-    >>> _ = f.write('Line 2\\n')
+    >>> f.write('Line 2\\n')
     >>> f.flush()
-    >>> next(generator)
+    >>> generator.next()
     'Line 2'
     >>> f.close()
     >>> fo.close()
     >>> os.remove('test_follow.txt')
     """
-    return Tailer(file, end=True).follow(delay)
+    return Tailer(file, end=True).follow(delay, filename)
 
 
 def _test():

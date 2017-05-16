@@ -191,6 +191,7 @@ class Tailer(object):
                     reopen = False
                     try:
                         if os.stat(filename).st_ino != curino:
+                            print "Inode changed"
                             self.file.close()
                             reopen = True
                     except:

@@ -165,6 +165,7 @@ class Tailer(object):
         trailing = True
         if filename is not None:
             curino = os.fstat(self.file.fileno()).st_ino
+            print "Current inode: ".curino
 
         while 1:
             where = self.file.tell()

@@ -11,12 +11,13 @@ myname = config.node['name']
 streamid = config.log['streamid']
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(5)
 s.connect((server_addr, server_port))
 print "Going to send data to " + server_addr + ":" + str(server_port)
 
 s.send('+node|' + str(myname) + '|' + str(streamid) + '\r\n')
 
-for line in tailer.follow(open(logfile)):
+for line in tailer.follow(open(logfile), 1, logfile):
     data = '+log|' + str(streamid) + '|' + str(myname) + '|info' + '|' + line + '\r\n'
     s.send(data)
 
